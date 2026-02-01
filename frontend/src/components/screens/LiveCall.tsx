@@ -2,13 +2,14 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import type { Lead, Agent } from "@/types";
 import { TranscriptPanel, type TranscriptMessage } from "./TranscriptPanel";
 import { ActivityFeed } from "./ActivityFeed";
-import { MicrophoneButton } from "./MicrophoneButton";
-import { QuickResponses } from "./QuickResponses";
 import { KnowledgeModal } from "./KnowledgeModal";
 import { SuccessCelebration } from "./SuccessCelebration";
 import { useAudioPlayer } from "@/hooks/useAudioPlayer";
+import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
+import { useKnowledgeStore } from "@/stores/knowledgeStore";
 import {
   call1Flow,
+  call2Flow,
   type ConversationStep,
   type ActivityItem,
 } from "./conversationFlows";
@@ -17,45 +18,39 @@ interface LiveCallProps {
   lead: Lead;
   agent: Agent;
   onEndCall: () => void;
+  flowId?: "call1" | "call2"; // Which demo flow to run
 }
 
-export function LiveCall({ lead, agent, onEndCall }: LiveCallProps) {
-  const [currentFlow] = useState<ConversationStep[]>(call1Flow);
-  const [, setCurrentStepIndex] = useState(0);
+export function LiveCall({ lead, agent, onEndCall, flowId = "call1" }: LiveCallProps) {
+  // Select the flow based on prop
+  const selectedFlow = flowId === "call2" ? call2Flow : call1Flow;
+  const [currentFlow] = useState<ConversationStep[]>(selectedFlow);
+  const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [messages, setMessages] = useState<TranscriptMessage[]>([]);
   const [activities, setActivities] = useState<ActivityItem[]>([]);
   const [waitingForUser, setWaitingForUser] = useState(false);
-  const [quickResponses, setQuickResponses] = useState<string[]>([]);
   const [isAgentSpeaking, setIsAgentSpeaking] = useState(false);
-  const [interimText] = useState("");
   const [duration, setDuration] = useState(0);
   const [showKnowledgeModal, setShowKnowledgeModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
-  const [voiceModeEnabled, setVoiceModeEnabled] = useState(true);
   const [callEnded, setCallEnded] = useState(false);
 
   const audioPlayer = useAudioPlayer();
-  const hasStartedRef = useRef(false);
+  const { addKnowledge, addCall } = useKnowledgeStore();
+  const lastProcessedTranscriptRef = useRef<string>("");
+  const durationRef = useRef(0);
+  const lastProcessedIndexRef = useRef(-1);
+  const isProcessingRef = useRef(false);
 
-  // Timer effect
-  useEffect(() => {
-    if (callEnded) return;
-    const timer = setInterval(() => {
-      setDuration((prev) => prev + 1);
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [callEnded]);
-
-  // Start call on mount - use ref to prevent StrictMode double-execution
-  useEffect(() => {
-    if (hasStartedRef.current) return;
-    hasStartedRef.current = true;
-
-    setTimeout(() => {
-      processStep(call1Flow[0]);
-    }, 500);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // Speech recognition for background listening
+  const {
+    isListening,
+    transcript,
+    interimText,
+    startListening,
+    stopListening,
+    isSupported: speechSupported,
+  } = useSpeechRecognition();
 
   const formatDuration = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -71,11 +66,11 @@ export function LiveCall({ lead, agent, onEndCall }: LiveCallProps) {
           id: `msg-${Date.now()}`,
           speaker,
           text,
-          timestamp: formatDuration(duration),
+          timestamp: formatDuration(durationRef.current),
         },
       ]);
     },
-    [duration]
+    []
   );
 
   const addActivity = useCallback((activity: ActivityItem) => {
@@ -97,81 +92,85 @@ export function LiveCall({ lead, agent, onEndCall }: LiveCallProps) {
 
   const processStep = useCallback(
     async (step: ConversationStep) => {
-      // Add activity if present
-      if (step.activity) {
-        await delay(step.activityDelay || 300);
-        addActivity(step.activity);
-      }
+      // Prevent overlapping step processing
+      if (isProcessingRef.current) return;
+      isProcessingRef.current = true;
 
-      // If agent speaks
-      if (step.speaker === "agent" && step.text) {
-        setIsAgentSpeaking(true);
+      try {
+        // Add activity if present
+        if (step.activity) {
+          await delay(step.activityDelay || 300);
+          addActivity(step.activity);
+        }
 
-        // Try to play audio if available
-        if (step.audioFile) {
-          try {
-            await audioPlayer.play(step.audioFile);
-          } catch {
-            // Audio not found, simulate with delay
+        // If agent speaks
+        if (step.speaker === "agent" && step.text) {
+          setIsAgentSpeaking(true);
+
+          // Try to play audio if available
+          if (step.audioFile) {
+            try {
+              await audioPlayer.play(`/agent-audio/${step.audioFile}`);
+            } catch {
+              // Audio not found, simulate with delay
+              await delay(Math.min(step.text.length * 50, 3000));
+            }
+          } else {
             await delay(Math.min(step.text.length * 50, 3000));
           }
+
+          setIsAgentSpeaking(false);
+          addMessage("agent", step.text);
+        }
+
+        // Check for end conditions
+        if (step.isEnd) {
+          setCallEnded(true);
+          if (step.endType === "escalate") {
+            await delay(1000);
+            setShowKnowledgeModal(true);
+          } else if (step.endType === "success") {
+            await delay(1000);
+            setShowSuccessModal(true);
+          }
+          isProcessingRef.current = false;
+          return;
+        }
+
+        // Wait for user or auto-advance
+        if (step.waitForUser) {
+          setWaitingForUser(true);
+          isProcessingRef.current = false; // Allow processing again for next step
+        } else if (step.autoAdvanceDelay) {
+          await delay(step.autoAdvanceDelay);
+          isProcessingRef.current = false; // Allow processing before advancing
+          setCurrentStepIndex(prev => prev + 1);
         } else {
-          await delay(Math.min(step.text.length * 50, 3000));
+          isProcessingRef.current = false;
         }
-
-        setIsAgentSpeaking(false);
-        addMessage("agent", step.text);
-      }
-
-      // Check for end conditions
-      if (step.isEnd) {
-        setCallEnded(true);
-        if (step.endType === "escalate") {
-          await delay(1000);
-          setShowKnowledgeModal(true);
-        } else if (step.endType === "success") {
-          await delay(1000);
-          setShowSuccessModal(true);
-        }
-        return;
-      }
-
-      // Wait for user or auto-advance
-      if (step.waitForUser) {
-        setWaitingForUser(true);
-        setQuickResponses(step.quickResponses || []);
-      } else if (step.autoAdvanceDelay) {
-        await delay(step.autoAdvanceDelay);
-        advanceToNextStep();
+      } catch (error) {
+        console.error('Error processing step:', error);
+        isProcessingRef.current = false;
       }
     },
     [addActivity, addMessage, audioPlayer]
   );
 
-  const advanceToNextStep = useCallback(() => {
-    setCurrentStepIndex((prev) => {
-      const nextIndex = prev + 1;
-      if (nextIndex < currentFlow.length) {
-        const nextStep = currentFlow[nextIndex];
-        processStep(nextStep);
-      }
-      return nextIndex;
-    });
-  }, [currentFlow, processStep]);
-
   const handleUserResponse = useCallback(
     (text: string) => {
+      // Prevent double submissions
+      if (!waitingForUser) return;
+
       // Add customer message
       addMessage("customer", text);
       setWaitingForUser(false);
-      setQuickResponses([]);
 
-      // Small delay then advance
+      // Delay then advance to give audio time to finish
       setTimeout(() => {
-        advanceToNextStep();
-      }, 500);
+        setCurrentStepIndex(prev => prev + 1);
+      }, 800);
     },
-    [addMessage, advanceToNextStep]
+    [addMessage, waitingForUser]
   );
 
   const handleEndCall = useCallback(() => {
@@ -179,11 +178,112 @@ export function LiveCall({ lead, agent, onEndCall }: LiveCallProps) {
     onEndCall();
   }, [audioPlayer, onEndCall]);
 
-  const handleKnowledgeSave = useCallback(() => {
+  // --- Effects ---
+
+  // Main Effect: Process current step when index changes
+  useEffect(() => {
+    if (callEnded || currentStepIndex >= currentFlow.length) return;
+
+    // Safety check: ensure we don't re-run for the SAME step if already processed
+    if (lastProcessedIndexRef.current === currentStepIndex) return;
+
+    // Small delay on mount to allow UI to settle
+    const timeout = setTimeout(() => {
+      // Re-check inside timeout to handle strict mode double-firing correctly
+      if (lastProcessedIndexRef.current === currentStepIndex) return;
+
+      lastProcessedIndexRef.current = currentStepIndex;
+      const step = currentFlow[currentStepIndex];
+      if (step) processStep(step);
+    }, currentStepIndex === 0 ? 800 : 0);
+
+    return () => clearTimeout(timeout);
+  }, [currentStepIndex, currentFlow, callEnded, processStep]);
+
+  // Timer effect
+  useEffect(() => {
+    if (callEnded) return;
+    const timer = setInterval(() => {
+      setDuration((prev) => {
+        const next = prev + 1;
+        durationRef.current = next;
+        return next;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [callEnded]);
+
+  // Speech recognition control - start/stop based on waiting state
+  useEffect(() => {
+    if (!speechSupported) return;
+
+    if (waitingForUser && !callEnded && !isAgentSpeaking) {
+      // Start listening when waiting for user
+      const timeout = setTimeout(() => {
+        if (!isListening) {
+          startListening();
+        }
+      }, 500);
+      return () => clearTimeout(timeout);
+    } else {
+      // Stop listening when not waiting
+      if (isListening) {
+        stopListening();
+      }
+    }
+  }, [waitingForUser, callEnded, isAgentSpeaking, speechSupported, isListening, startListening, stopListening]);
+
+  // Handle final transcript - submit as user response (with deduplication)
+  useEffect(() => {
+    if (
+      transcript &&
+      waitingForUser &&
+      !isProcessingRef.current &&
+      transcript !== lastProcessedTranscriptRef.current
+    ) {
+      lastProcessedTranscriptRef.current = transcript;
+      handleUserResponse(transcript);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [transcript, waitingForUser]);
+
+  const handleKnowledgeSave = useCallback((data: { topic: string; response: string }) => {
+    // Save to knowledge store
+    addKnowledge({
+      topic: data.topic,
+      response: data.response,
+      question: "Are you HIPAA compliant?",
+      source: 'call-escalation',
+    });
+
+    // Record the call with escalated outcome
+    addCall({
+      leadName: lead.name,
+      leadCompany: lead.company,
+      agentName: agent.name,
+      duration,
+      outcome: 'escalated',
+      flowId,
+    });
+
     setShowKnowledgeModal(false);
     // Return to dashboard after saving knowledge
     setTimeout(() => onEndCall(), 500);
-  }, [onEndCall]);
+  }, [addKnowledge, addCall, lead.name, lead.company, agent.name, duration, flowId, onEndCall]);
+
+  // Handle success completion
+  const handleSuccessComplete = useCallback(() => {
+    addCall({
+      leadName: lead.name,
+      leadCompany: lead.company,
+      agentName: agent.name,
+      duration,
+      outcome: 'success',
+      flowId,
+    });
+    setShowSuccessModal(false);
+    setTimeout(() => onEndCall(), 500);
+  }, [addCall, lead.name, lead.company, agent.name, duration, flowId, onEndCall]);
 
   return (
     <div className="bg-background-light dark:bg-background-dark min-h-screen font-display flex flex-col">
@@ -218,29 +318,7 @@ export function LiveCall({ lead, agent, onEndCall }: LiveCallProps) {
           </div>
 
           {/* Right: End Call */}
-          <div className="flex justify-end w-1/4 gap-3">
-            {/* Voice Mode Toggle */}
-            <label className="flex items-center gap-2 cursor-pointer">
-              <span className="text-xs text-slate-500 hidden sm:inline">
-                Voice
-              </span>
-              <div className="relative">
-                <input
-                  type="checkbox"
-                  checked={voiceModeEnabled}
-                  onChange={(e) => setVoiceModeEnabled(e.target.checked)}
-                  className="sr-only"
-                />
-                <div
-                  className={`w-8 h-5 rounded-full transition-colors ${voiceModeEnabled ? "bg-primary" : "bg-slate-300 dark:bg-slate-600"}`}
-                >
-                  <div
-                    className={`absolute w-3 h-3 bg-white rounded-full top-1 transition-transform ${voiceModeEnabled ? "translate-x-4" : "translate-x-1"}`}
-                  ></div>
-                </div>
-              </div>
-            </label>
-
+          <div className="flex justify-end w-1/4">
             <button
               onClick={handleEndCall}
               className="flex items-center gap-2 px-4 py-2 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 dark:border-red-900/50 dark:text-red-400 dark:hover:bg-red-900/20 transition-all font-semibold text-sm"
@@ -273,33 +351,29 @@ export function LiveCall({ lead, agent, onEndCall }: LiveCallProps) {
             <div className="bg-white dark:bg-[#1e1e2d] rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 p-6 shrink-0">
               {waitingForUser ? (
                 <div className="space-y-4">
-                  {/* Microphone */}
-                  {voiceModeEnabled && (
-                    <div className="flex justify-center">
-                      <MicrophoneButton
-                        onTranscript={handleUserResponse}
-                        disabled={!waitingForUser}
-                      />
+                  {/* Listening indicator */}
+                  {isListening && (
+                    <div className="flex items-center justify-center gap-3 py-2">
+                      <div className="flex items-center gap-2 px-4 py-2 bg-green-50 dark:bg-green-900/20 rounded-full border border-green-200 dark:border-green-800">
+                        <span className="relative flex h-3 w-3">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+                        </span>
+                        <span className="text-sm font-medium text-green-700 dark:text-green-400">
+                          Listening to call...
+                        </span>
+                      </div>
                     </div>
                   )}
 
-                  {/* Divider */}
-                  {voiceModeEnabled && quickResponses.length > 0 && (
-                    <div className="flex items-center gap-4 my-4">
-                      <div className="flex-1 border-t border-slate-200 dark:border-slate-700"></div>
-                      <span className="text-sm text-slate-400 font-medium">
-                        OR
-                      </span>
-                      <div className="flex-1 border-t border-slate-200 dark:border-slate-700"></div>
+                  {/* Interim text - what user is saying */}
+                  {interimText && (
+                    <div className="px-4 py-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700">
+                      <p className="text-sm text-slate-500 dark:text-slate-400 italic">
+                        "{interimText}"
+                      </p>
                     </div>
                   )}
-
-                  {/* Quick Responses */}
-                  <QuickResponses
-                    responses={quickResponses}
-                    onSelect={handleUserResponse}
-                    disabled={!waitingForUser}
-                  />
                 </div>
               ) : (
                 <div className="text-center py-4 text-slate-400">
@@ -335,10 +409,7 @@ export function LiveCall({ lead, agent, onEndCall }: LiveCallProps) {
 
       <SuccessCelebration
         isOpen={showSuccessModal}
-        onClose={() => {
-          setShowSuccessModal(false);
-          onEndCall();
-        }}
+        onClose={handleSuccessComplete}
       />
     </div>
   );

@@ -5,7 +5,7 @@ interface StartCallModalProps {
   lead: Lead;
   agents: Agent[];
   onClose: () => void;
-  onConfirm: (agentId: string) => void;
+  onConfirm: (agentId: string, flowId: "call1" | "call2") => void;
 }
 
 // Agent avatar URLs for demo
@@ -20,6 +20,7 @@ export function StartCallModal({ lead, agents, onClose, onConfirm }: StartCallMo
   const [selectedAgent, setSelectedAgent] = useState<string | null>(
     agents.find(a => a.recommended)?.id || agents[0]?.id || null
   );
+  const [selectedFlow, setSelectedFlow] = useState<"call1" | "call2">("call1");
 
   return (
     <div className="font-display bg-background-light dark:bg-background-dark overflow-hidden h-screen w-full">
@@ -99,8 +100,8 @@ export function StartCallModal({ lead, agents, onClose, onConfirm }: StartCallMo
                       )}
 
                       <div className={`flex flex-col gap-3 p-4 rounded-xl transition-all h-full ${isSelected
-                          ? "border-2 border-primary bg-primary/5 dark:bg-primary/10 shadow-sm"
-                          : "border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-gray-300 dark:hover:border-gray-600"
+                        ? "border-2 border-primary bg-primary/5 dark:bg-primary/10 shadow-sm"
+                        : "border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-gray-300 dark:hover:border-gray-600"
                         }`}>
                         <div className="flex items-center justify-between">
                           <div
@@ -108,8 +109,8 @@ export function StartCallModal({ lead, agents, onClose, onConfirm }: StartCallMo
                             style={{ backgroundImage: `url('${agentAvatars[agent.id] || ""}')` }}
                           />
                           <div className={`h-6 w-6 rounded-full flex items-center justify-center ${isSelected
-                              ? "bg-primary text-white"
-                              : "border border-gray-300 dark:border-gray-600"
+                            ? "bg-primary text-white"
+                            : "border border-gray-300 dark:border-gray-600"
                             }`}>
                             {isSelected && (
                               <span className="material-symbols-outlined text-[16px]">check</span>
@@ -169,6 +170,45 @@ export function StartCallModal({ lead, agents, onClose, onConfirm }: StartCallMo
                 </div>
               </div>
             </div>
+
+            {/* 4. Demo Scenario */}
+            <div className="flex flex-col gap-3">
+              <h3 className="text-[#111118] dark:text-white text-sm font-semibold tracking-wide uppercase opacity-80">
+                Demo Scenario
+              </h3>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  onClick={() => setSelectedFlow("call1")}
+                  className={`p-4 rounded-xl border-2 text-left transition-all ${selectedFlow === "call1"
+                      ? "border-primary bg-primary/5 dark:bg-primary/10"
+                      : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600"
+                    }`}
+                >
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="material-symbols-outlined text-orange-500">school</span>
+                    <span className="font-semibold text-[#111118] dark:text-white">Call 1: Learning</span>
+                  </div>
+                  <p className="text-xs text-[#616289]">
+                    Agent encounters HIPAA question, struggles, and escalates. Shows knowledge gap.
+                  </p>
+                </button>
+                <button
+                  onClick={() => setSelectedFlow("call2")}
+                  className={`p-4 rounded-xl border-2 text-left transition-all ${selectedFlow === "call2"
+                      ? "border-primary bg-primary/5 dark:bg-primary/10"
+                      : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600"
+                    }`}
+                >
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="material-symbols-outlined text-green-500">psychology</span>
+                    <span className="font-semibold text-[#111118] dark:text-white">Call 2: Using Knowledge</span>
+                  </div>
+                  <p className="text-xs text-[#616289]">
+                    Agent uses learned knowledge to confidently answer HIPAA and close the deal.
+                  </p>
+                </button>
+              </div>
+            </div>
           </div>
 
           {/* Footer / Actions */}
@@ -180,7 +220,7 @@ export function StartCallModal({ lead, agents, onClose, onConfirm }: StartCallMo
               Cancel
             </button>
             <button
-              onClick={() => selectedAgent && onConfirm(selectedAgent)}
+              onClick={() => selectedAgent && onConfirm(selectedAgent, selectedFlow)}
               disabled={!selectedAgent}
               className="px-5 py-2.5 rounded-lg bg-primary hover:bg-primary-dark text-white text-sm font-semibold shadow-md shadow-primary/20 flex items-center gap-2 transition-all transform active:scale-95 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
             >

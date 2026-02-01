@@ -5,6 +5,7 @@ import { StartCallModal } from './components/screens/StartCallModal';
 import { CallConnecting } from './components/screens/CallConnecting';
 import { CallReady } from './components/screens/CallReady';
 import { LiveCall } from './components/screens/LiveCall';
+import { KnowledgeStoreProvider } from './stores/knowledgeStore';
 
 // Mock data
 const mockAgents: Agent[] = [
@@ -121,32 +122,32 @@ const mockLeads: Lead[] = [
 type AppState =
   | { screen: 'dashboard' }
   | { screen: 'start-call-modal'; lead: Lead }
-  | { screen: 'connecting'; lead: Lead; agent: Agent }
-  | { screen: 'ready'; lead: Lead; agent: Agent }
-  | { screen: 'live-call'; lead: Lead; agent: Agent };
+  | { screen: 'connecting'; lead: Lead; agent: Agent; flowId: 'call1' | 'call2' }
+  | { screen: 'ready'; lead: Lead; agent: Agent; flowId: 'call1' | 'call2' }
+  | { screen: 'live-call'; lead: Lead; agent: Agent; flowId: 'call1' | 'call2' };
 
-function App() {
+function AppContent() {
   const [state, setState] = useState<AppState>({ screen: 'dashboard' });
 
   const handleStartCall = (lead: Lead) => {
     setState({ screen: 'start-call-modal', lead });
   };
 
-  const handleConfirmCall = (agentId: string) => {
+  const handleConfirmCall = (agentId: string, flowId: 'call1' | 'call2') => {
     if (state.screen !== 'start-call-modal') return;
     const agent = mockAgents.find(a => a.id === agentId);
     if (!agent) return;
-    setState({ screen: 'connecting', lead: state.lead, agent });
+    setState({ screen: 'connecting', lead: state.lead, agent, flowId });
   };
 
   const handleConnectingComplete = () => {
     if (state.screen !== 'connecting') return;
-    setState({ screen: 'ready', lead: state.lead, agent: state.agent });
+    setState({ screen: 'ready', lead: state.lead, agent: state.agent, flowId: state.flowId });
   };
 
   const handleReadyComplete = () => {
     if (state.screen !== 'ready') return;
-    setState({ screen: 'live-call', lead: state.lead, agent: state.agent });
+    setState({ screen: 'live-call', lead: state.lead, agent: state.agent, flowId: state.flowId });
   };
 
   const handleEndCall = () => {
@@ -197,9 +198,18 @@ function App() {
           lead={state.lead}
           agent={state.agent}
           onEndCall={handleEndCall}
+          flowId={state.flowId}
         />
       )}
     </>
+  );
+}
+
+function App() {
+  return (
+    <KnowledgeStoreProvider>
+      <AppContent />
+    </KnowledgeStoreProvider>
   );
 }
 
