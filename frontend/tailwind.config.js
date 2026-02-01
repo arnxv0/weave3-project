@@ -24,12 +24,15 @@ export default {
         ring: "hsl(var(--ring))",
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
+        "background-light": "#f6f6f8",
+        "background-dark": "#111122",
         primary: {
           DEFAULT: "#6567f1",
+          dark: "#5153cf",
           foreground: "hsl(var(--primary-foreground))",
         },
         secondary: {
-          DEFAULT: "hsl(var(--secondary))",
+          DEFAULT: "#10b981",
           foreground: "hsl(var(--secondary-foreground))",
         },
         destructive: {
@@ -53,10 +56,16 @@ export default {
           foreground: "hsl(var(--card-foreground))",
         },
       },
+      fontFamily: {
+        display: ["Inter", "sans-serif"],
+        body: ["Inter", "sans-serif"],
+      },
       borderRadius: {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
+        xl: "0.75rem",
+        "2xl": "1rem",
       },
       keyframes: {
         "accordion-down": {
@@ -67,10 +76,17 @@ export default {
           from: { height: "var(--radix-accordion-content-height)" },
           to: { height: "0" },
         },
+        "indeterminate": {
+          "0%": { transform: "translateX(-100%)" },
+          "100%": { transform: "translateX(100%)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
+        "pulse-slow": "pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite",
+        "ping-slow": "ping 2s cubic-bezier(0, 0, 0.2, 1) infinite",
+        "indeterminate": "indeterminate 1.5s infinite linear",
       },
     },
   },

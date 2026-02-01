@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { Phone, Check, Loader2 } from "lucide-react";
 import type { Lead, Agent } from "@/types";
 
 interface CallConnectingProps {
@@ -9,105 +8,157 @@ interface CallConnectingProps {
 }
 
 const steps = [
-  { label: "Analyzing Lead Profile", status: "completed" },
-  { label: "Loading Agent Knowledge Base", status: "completed" },
-  { label: "Establishing Connection", status: "active" },
-  { label: "Initiating Call", status: "pending" },
+  { label: "Analyzing lead profile", initialStatus: "completed" },
+  { label: "Loading knowledge base", initialStatus: "active" },
+  { label: "Establishing connection", initialStatus: "pending" },
+  { label: "Agent ready", initialStatus: "pending" },
 ];
 
 export function CallConnecting({ lead, agent, onComplete }: CallConnectingProps) {
-  const [progress, setProgress] = useState(0);
+  const [currentStep, setCurrentStep] = useState(1);
 
   useEffect(() => {
+    // Progress through steps
     const timer = setInterval(() => {
-      setProgress((prev) => {
-        if (prev >= 100) {
+      setCurrentStep((prev) => {
+        if (prev >= steps.length) {
           clearInterval(timer);
           setTimeout(onComplete, 500);
-          return 100;
+          return prev;
         }
-        return prev + 10;
+        return prev + 1;
       });
-    }, 300);
+    }, 1500);
 
     return () => clearInterval(timer);
   }, [onComplete]);
 
+  const getStepStatus = (index: number) => {
+    if (index < currentStep) return "completed";
+    if (index === currentStep) return "active";
+    return "pending";
+  };
+
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-card border border-border rounded-lg w-full max-w-md p-8">
-        {/* Animated Phone Icon */}
-        <div className="flex justify-center mb-6">
-          <div className="relative">
-            <div className="absolute inset-0 animate-ping opacity-20">
-              <div className="w-24 h-24 rounded-full bg-primary"></div>
-            </div>
-            <div className="absolute inset-4 animate-ping opacity-30 animation-delay-200">
-              <div className="w-16 h-16 rounded-full bg-primary"></div>
-            </div>
-            <div className="relative w-24 h-24 rounded-full bg-primary/20 flex items-center justify-center">
-              <Phone className="h-12 w-12 text-primary" />
-            </div>
+    <div className="bg-background-light dark:bg-background-dark min-h-screen flex items-center justify-center p-4 font-display">
+      {/* Modal Card */}
+      <div className="relative w-full max-w-[500px] bg-white dark:bg-[#1a1a2e] rounded-xl shadow-2xl overflow-hidden flex flex-col items-center p-8 transition-colors duration-200">
+        {/* Header / Hero Icon */}
+        <div className="relative flex items-center justify-center mb-6 mt-4">
+          {/* Animated Concentric Circles */}
+          <div className="absolute w-32 h-32 bg-primary/10 rounded-full animate-ping-slow opacity-75"></div>
+          <div className="absolute w-24 h-24 bg-primary/20 rounded-full animate-pulse"></div>
+          {/* Main Icon */}
+          <div className="relative z-10 flex items-center justify-center w-20 h-20 bg-primary/10 rounded-full text-primary">
+            <span className="material-symbols-outlined text-[40px]">phone_in_talk</span>
           </div>
         </div>
 
-        {/* Title */}
-        <h2 className="text-2xl font-bold text-center mb-2">Connecting Call...</h2>
-        <p className="text-sm text-muted-foreground text-center mb-6">
-          {lead.name} • {agent.name}
-        </p>
+        {/* Titles */}
+        <div className="text-center mb-8">
+          <h1 className="text-[#111118] dark:text-white text-2xl font-bold leading-tight tracking-tight mb-2">
+            Connecting Call...
+          </h1>
+          <p className="text-[#616289] dark:text-slate-400 text-base font-normal">
+            {agent.name} is joining
+          </p>
+        </div>
 
         {/* Progress Bar */}
-        <div className="mb-6">
-          <div className="h-2 bg-muted rounded-full overflow-hidden">
-            <div
-              className="h-full bg-gradient-to-r from-primary to-purple-600 transition-all duration-300 ease-out"
-              style={{ width: `${progress}%` }}
-            >
-              <div className="h-full w-full bg-white/20 animate-pulse"></div>
-            </div>
-          </div>
-          <div className="text-xs text-muted-foreground text-center mt-2">
-            {progress}% Complete
+        <div className="w-full mb-8">
+          <div className="h-1.5 w-full bg-[#dbdbe6] dark:bg-slate-700 rounded-full overflow-hidden relative">
+            {/* Indeterminate Gradient Bar */}
+            <div className="absolute top-0 left-0 h-full w-full bg-gradient-to-r from-transparent via-primary to-transparent animate-indeterminate opacity-80"></div>
+            <div className="h-full w-1/3 bg-primary rounded-full absolute top-0 animate-indeterminate"></div>
           </div>
         </div>
 
-        {/* Steps Timeline */}
-        <div className="space-y-4">
-          {steps.map((step, index) => {
-            const stepProgress = Math.floor((index / steps.length) * 100);
-            const isCompleted = progress > stepProgress;
-            const isActive = progress >= stepProgress && progress < stepProgress + 25;
-            
-            return (
-              <div key={index} className="flex items-start gap-3">
-                <div className={`mt-0.5 flex items-center justify-center w-5 h-5 rounded-full border-2 ${
-                  isCompleted
-                    ? "bg-primary border-primary"
-                    : isActive
-                    ? "border-primary"
-                    : "border-muted-foreground/30"
-                }`}>
-                  {isCompleted ? (
-                    <Check className="h-3 w-3 text-white" />
-                  ) : isActive ? (
-                    <Loader2 className="h-3 w-3 text-primary animate-spin" />
-                  ) : null}
-                </div>
-                <div className="flex-1">
-                  <div className={`text-sm font-medium ${
-                    isCompleted || isActive ? "text-foreground" : "text-muted-foreground"
-                  }`}>
-                    {step.label}
+        {/* Timeline */}
+        <div className="w-full mb-8 px-4">
+          <div className="grid grid-cols-[32px_1fr] gap-x-3">
+            {steps.map((step, index) => {
+              const status = getStepStatus(index);
+              const isLast = index === steps.length - 1;
+
+              return (
+                <div key={index} className="contents">
+                  {/* Icon Column */}
+                  <div className="flex flex-col items-center">
+                    {status === "completed" && (
+                      <div className="text-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 rounded-full p-0.5">
+                        <span className="material-symbols-outlined text-[20px] font-bold">check_circle</span>
+                      </div>
+                    )}
+                    {status === "active" && (
+                      <div className="text-primary bg-white dark:bg-[#1a1a2e] z-10">
+                        <span className="material-symbols-outlined text-[20px] animate-spin">progress_activity</span>
+                      </div>
+                    )}
+                    {status === "pending" && (
+                      <div className="text-[#dbdbe6] dark:text-slate-600 bg-white dark:bg-[#1a1a2e] z-10">
+                        <span className="material-symbols-outlined text-[20px]">radio_button_unchecked</span>
+                      </div>
+                    )}
+                    {!isLast && (
+                      <div className={`w-[2px] h-full min-h-[24px] ${status === "completed" ? "bg-emerald-500/30" : "bg-[#dbdbe6] dark:bg-slate-700"
+                        }`}></div>
+                    )}
                   </div>
-                  {isActive && (
-                    <div className="text-xs text-primary mt-0.5">In progress...</div>
-                  )}
+
+                  {/* Text Column */}
+                  <div className={`flex flex-col pb-6 ${status === "pending" ? "opacity-60" : ""}`}>
+                    <p className={`text-sm font-medium leading-none mb-1 ${status === "active"
+                        ? "text-primary dark:text-indigo-400 font-bold"
+                        : "text-[#111118] dark:text-white"
+                      }`}>
+                      {step.label}
+                    </p>
+                    <p className={`text-xs font-normal ${status === "completed"
+                        ? "text-emerald-600 dark:text-emerald-400"
+                        : status === "active"
+                          ? "text-[#616289] dark:text-slate-400"
+                          : "text-[#616289] dark:text-slate-500"
+                      }`}>
+                      {status === "completed" ? "Completed" : status === "active" ? "In Progress..." : "Pending"}
+                    </p>
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
+
+        {/* Details Section */}
+        <div className="w-full bg-primary/5 dark:bg-primary/10 rounded-lg p-5 mb-6 border border-primary/10 dark:border-primary/20">
+          <div className="grid grid-cols-2 gap-y-4 gap-x-2">
+            <div className="flex flex-col gap-1">
+              <p className="text-[#616289] dark:text-indigo-300 text-xs font-medium uppercase tracking-wider">Lead</p>
+              <p className="text-[#111118] dark:text-white text-sm font-semibold truncate">
+                {lead.name} ({lead.company})
+              </p>
+            </div>
+            <div className="flex flex-col gap-1">
+              <p className="text-[#616289] dark:text-indigo-300 text-xs font-medium uppercase tracking-wider">Agent</p>
+              <p className="text-primary dark:text-indigo-400 text-sm font-bold truncate">{agent.name}</p>
+            </div>
+            <div className="flex flex-col gap-1">
+              <p className="text-[#616289] dark:text-indigo-300 text-xs font-medium uppercase tracking-wider">Type</p>
+              <p className="text-[#111118] dark:text-white text-sm font-semibold truncate">Discovery Call</p>
+            </div>
+            <div className="flex flex-col gap-1">
+              <p className="text-[#616289] dark:text-indigo-300 text-xs font-medium uppercase tracking-wider">Knowledge Loaded</p>
+              <div className="flex items-center gap-1.5">
+                <span className="material-symbols-outlined text-xs text-primary dark:text-indigo-400">database</span>
+                <p className="text-[#111118] dark:text-white text-sm font-semibold truncate">47 patterns</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Footer / Action */}
+        <button className="flex w-full max-w-[200px] cursor-pointer items-center justify-center rounded-lg h-10 px-4 bg-transparent text-[#616289] hover:text-[#111118] dark:text-slate-400 dark:hover:text-white transition-colors text-sm font-bold leading-normal tracking-[0.015em] group">
+          <span className="group-hover:underline decoration-2 underline-offset-4">Cancel Call</span>
+        </button>
       </div>
     </div>
   );
