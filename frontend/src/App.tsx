@@ -1,35 +1,206 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import { useState } from 'react';
+import type { Agent, Lead } from './types';
+import { DashboardScreen } from './components/screens/DashboardScreen';
+import { StartCallModal } from './components/screens/StartCallModal';
+import { CallConnecting } from './components/screens/CallConnecting';
+import { CallReady } from './components/screens/CallReady';
+import { LiveCall } from './components/screens/LiveCall';
+
+// Mock data
+const mockAgents: Agent[] = [
+  {
+    id: "1",
+    name: "Agent Alpha",
+    avatar: "A",
+    status: "Available",
+    successRate: 78,
+    callsToday: 12,
+    totalCalls: 245,
+    specialties: ["Enterprise", "SaaS"],
+    recommended: true,
+  },
+  {
+    id: "2",
+    name: "Agent Beta",
+    avatar: "B",
+    status: "Available",
+    successRate: 92,
+    callsToday: 8,
+    totalCalls: 189,
+    specialties: ["SMB", "E-commerce"],
+  },
+  {
+    id: "3",
+    name: "Agent Gamma",
+    avatar: "G",
+    status: "On Call",
+    successRate: 65,
+    callsToday: 15,
+    totalCalls: 312,
+    specialties: ["FinTech", "Healthcare"],
+  },
+  {
+    id: "4",
+    name: "Agent Delta",
+    avatar: "D",
+    status: "Available",
+    successRate: 82,
+    callsToday: 10,
+    totalCalls: 276,
+    specialties: ["Manufacturing", "Logistics"],
+  },
+];
+
+const mockLeads: Lead[] = [
+  {
+    id: "1",
+    name: "John Smith",
+    company: "TechCorp Inc",
+    industry: "Technology",
+    status: "Hot",
+    dealSize: 75000,
+    lastContact: "2 hours ago",
+    priority: "high",
+    matchScore: 85,
+    bestMatchAgent: {
+      agentId: "1",
+      agentName: "Agent Alpha",
+      matchScore: 85,
+    },
+  },
+  {
+    id: "2",
+    name: "Sarah Johnson",
+    company: "Acme Corp",
+    industry: "Manufacturing",
+    status: "Warm",
+    dealSize: 120000,
+    lastContact: "1 day ago",
+    priority: "high",
+    matchScore: 92,
+    bestMatchAgent: {
+      agentId: "4",
+      agentName: "Agent Delta",
+      matchScore: 92,
+    },
+  },
+  {
+    id: "3",
+    name: "Michael Chen",
+    company: "DataFlow Systems",
+    industry: "SaaS",
+    status: "New",
+    dealSize: 45000,
+    lastContact: "3 days ago",
+    priority: "medium",
+    matchScore: 78,
+    bestMatchAgent: {
+      agentId: "1",
+      agentName: "Agent Alpha",
+      matchScore: 78,
+    },
+  },
+  {
+    id: "4",
+    name: "Emily Rodriguez",
+    company: "HealthCare Plus",
+    industry: "Healthcare",
+    status: "Qualified",
+    dealSize: 95000,
+    lastContact: "5 hours ago",
+    priority: "high",
+    matchScore: 88,
+    bestMatchAgent: {
+      agentId: "3",
+      agentName: "Agent Gamma",
+      matchScore: 88,
+    },
+  },
+];
+
+type AppState = 
+  | { screen: 'dashboard' }
+  | { screen: 'start-call-modal'; lead: Lead }
+  | { screen: 'connecting'; lead: Lead; agent: Agent }
+  | { screen: 'ready'; lead: Lead; agent: Agent }
+  | { screen: 'live-call'; lead: Lead; agent: Agent };
 
 function App() {
-  const [count, setCount] = useState(0)
+  const [state, setState] = useState<AppState>({ screen: 'dashboard' });
+
+  const handleStartCall = (lead: Lead) => {
+    setState({ screen: 'start-call-modal', lead });
+  };
+
+  const handleConfirmCall = (agentId: string) => {
+    if (state.screen !== 'start-call-modal') return;
+    const agent = mockAgents.find(a => a.id === agentId);
+    if (!agent) return;
+    setState({ screen: 'connecting', lead: state.lead, agent });
+  };
+
+  const handleConnectingComplete = () => {
+    if (state.screen !== 'connecting') return;
+    setState({ screen: 'ready', lead: state.lead, agent: state.agent });
+  };
+
+  const handleReadyComplete = () => {
+    if (state.screen !== 'ready') return;
+    setState({ screen: 'live-call', lead: state.lead, agent: state.agent });
+  };
+
+  const handleEndCall = () => {
+    setState({ screen: 'dashboard' });
+  };
+
+  const handleCloseModal = () => {
+    setState({ screen: 'dashboard' });
+  };
 
   return (
     <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
+      {state.screen === 'dashboard' && (
+        <DashboardScreen
+          agents={mockAgents}
+          leads={mockLeads}
+          onStartCall={handleStartCall}
+        />
+      )}
+
+      {state.screen === 'start-call-modal' && (
+        <StartCallModal
+          lead={state.lead}
+          agents={mockAgents}
+          onClose={handleCloseModal}
+          onConfirm={handleConfirmCall}
+        />
+      )}
+
+      {state.screen === 'connecting' && (
+        <CallConnecting
+          lead={state.lead}
+          agent={state.agent}
+          onComplete={handleConnectingComplete}
+        />
+      )}
+
+      {state.screen === 'ready' && (
+        <CallReady
+          lead={state.lead}
+          agent={state.agent}
+          onComplete={handleReadyComplete}
+        />
+      )}
+
+      {state.screen === 'live-call' && (
+        <LiveCall
+          lead={state.lead}
+          agent={state.agent}
+          onEndCall={handleEndCall}
+        />
+      )}
     </>
-  )
+  );
 }
 
-export default App
+export default App;
