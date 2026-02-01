@@ -80,6 +80,10 @@ export default {
           "0%": { transform: "translateX(-100%)" },
           "100%": { transform: "translateX(100%)" },
         },
+        "soundWave": {
+          "0%, 100%": { height: "0.5rem" },
+          "50%": { height: "1.5rem" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
@@ -87,6 +91,7 @@ export default {
         "pulse-slow": "pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite",
         "ping-slow": "ping 2s cubic-bezier(0, 0, 0.2, 1) infinite",
         "indeterminate": "indeterminate 1.5s infinite linear",
+        "sound-wave": "soundWave 0.5s ease-in-out infinite",
       },
     },
   },

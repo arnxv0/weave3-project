@@ -118,7 +118,7 @@ const mockLeads: Lead[] = [
   },
 ];
 
-type AppState = 
+type AppState =
   | { screen: 'dashboard' }
   | { screen: 'start-call-modal'; lead: Lead }
   | { screen: 'connecting'; lead: Lead; agent: Agent }
